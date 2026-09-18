@@ -1,0 +1,6 @@
+{
+  "name": "MERCHVERSE",
+  "description": "Next-generation Google-owned lifestyle and creator brand. Designed for Creators. Inspired by Innovation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
