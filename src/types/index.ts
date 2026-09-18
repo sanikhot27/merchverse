@@ -91,6 +91,7 @@ export interface GA4EventLog {
     | 'add_to_cart'
     | 'remove_from_cart'
     | 'wishlist_add'
+    | 'add_to_wishlist'
     | 'begin_checkout'
     | 'purchase'
     | 'search'

@@ -44,9 +44,43 @@ export default function App() {
   // Toast Notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Analytics pageview on mount
+  // Automatic Analytics pageview on initial mount and route restoration
   useEffect(() => {
-    ga4.logPageView('MERCHVERSE Flagship Creator Store');
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      if (path.startsWith('/product/')) {
+        const slug = path.replace('/product/', '');
+        const found = PRODUCTS.find((p) => p.slug === slug || p.id === slug);
+        if (found) {
+          setSelectedProduct(found);
+          setCurrentView('product-detail');
+          ga4.logPageView(`${found.name} | MERCHVERSE`, `/product/${found.slug}`);
+          ga4.logViewItem(found);
+          return;
+        }
+      }
+    }
+    ga4.logPageView('MERCHVERSE | Designed for Creators. Inspired by Innovation.', '/');
+  }, []);
+
+  // Handle browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      if (e.state && e.state.view === 'product-detail' && e.state.slug) {
+        const found = PRODUCTS.find((p) => p.slug === e.state.slug || p.id === e.state.slug);
+        if (found) {
+          setSelectedProduct(found);
+          setCurrentView('product-detail');
+          ga4.logPageView(`${found.name} | MERCHVERSE`, `/product/${found.slug}`);
+          return;
+        }
+      }
+      setCurrentView('home');
+      ga4.logPageView('MERCHVERSE | Designed for Creators. Inspired by Innovation.', '/');
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   const showToast = (msg: string) => {
@@ -59,7 +93,24 @@ export default function App() {
     setSelectedProduct(product);
     setCurrentView('product-detail');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (typeof window !== 'undefined') {
+      window.history.pushState(
+        { view: 'product-detail', slug: product.slug },
+        '',
+        `/product/${product.slug}`
+      );
+    }
+    ga4.logPageView(`${product.name} | MERCHVERSE`, `/product/${product.slug}`);
     ga4.logViewItem(product);
+  };
+
+  const handleNavigateHome = () => {
+    setCurrentView('home');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (typeof window !== 'undefined') {
+      window.history.pushState({ view: 'home' }, '', '/');
+    }
+    ga4.logPageView('MERCHVERSE | Designed for Creators. Inspired by Innovation.', '/');
   };
 
   // Add to Cart Handler
@@ -173,10 +224,7 @@ export default function App() {
       <Navbar
         cartCount={totalCartCount}
         wishlistCount={wishlistIds.size}
-        onNavigateHome={() => {
-          setCurrentView('home');
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
+        onNavigateHome={handleNavigateHome}
         onOpenCart={() => setIsCartOpen(true)}
         onOpenWishlist={() => {
           if (wishlistIds.size > 0) {
@@ -189,10 +237,15 @@ export default function App() {
         onOpenAssistant={() => setIsAssistantOpen(true)}
         onOpenQuiz={() => setIsQuizOpen(true)}
         onScrollToSection={(id) => {
+          if (currentView !== 'home') {
+            setCurrentView('home');
+          }
           const el = document.getElementById(id);
           if (el) {
             el.scrollIntoView({ behavior: 'smooth' });
           }
+          const sectionTitle = id.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+          ga4.logPageView(`MERCHVERSE | ${sectionTitle}`, `/#${id}`);
         }}
       />
 
@@ -251,11 +304,7 @@ export default function App() {
           /* Master Product Detail Page View */
           <ProductDetailPage
             product={selectedProduct}
-            onBack={() => {
-              setCurrentView('home');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-              ga4.logPageView('MERCHVERSE Flagship Creator Store');
-            }}
+            onBack={handleNavigateHome}
             onAddToCart={handleAddToCart}
             onToggleWishlist={handleToggleWishlist}
             isWishlisted={wishlistIds.has(selectedProduct.id)}

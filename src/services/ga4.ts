@@ -1,5 +1,14 @@
 import { GA4EventLog, Product, CartItem } from '../types';
 
+declare global {
+  interface Window {
+    dataLayer?: any[];
+    gtag?: (...args: any[]) => void;
+  }
+}
+
+export const GA_MEASUREMENT_ID = 'G-NF1RRXQNBB';
+
 type GA4Listener = (event: GA4EventLog) => void;
 
 class GA4TelemetryService {
@@ -8,13 +17,7 @@ class GA4TelemetryService {
   private listeners: Set<GA4Listener> = new Set();
 
   private constructor() {
-    // Initial page view
-    this.track('page_view', {
-      page_location: typeof window !== 'undefined' ? window.location.href : 'https://merchverse.google.com',
-      page_path: '/',
-      page_title: 'MERCHVERSE | Designed for Creators. Inspired by Innovation.',
-      source: 'ga4_campaign_recycled_hoodie_revamp',
-    });
+    // Service initialized
   }
 
   public static getInstance(): GA4TelemetryService {
@@ -57,8 +60,7 @@ class GA4TelemetryService {
       eventName,
       parameters: {
         ...parameters,
-        client_timestamp: Date.now(),
-        user_platform: 'web_desktop_creator',
+        send_to: GA_MEASUREMENT_ID,
       },
     };
 
@@ -67,12 +69,24 @@ class GA4TelemetryService {
       this.eventHistory.pop();
     }
 
+    // Forward to official Google Analytics 4 (gtag.js)
+    if (typeof window !== 'undefined') {
+      if (typeof window.gtag === 'function') {
+        window.gtag('event', eventName, parameters);
+      } else if (Array.isArray(window.dataLayer)) {
+        window.dataLayer.push({
+          event: eventName,
+          ...parameters,
+        });
+      }
+    }
+
     // Log to standard developer console
-    console.groupCollapsed(`%c[Analytics] %c${eventName}`, 'color: #4285F4; font-weight: bold;', 'color: #34A853; font-weight: bold;');
+    console.groupCollapsed(`%c[GA4 Analytics: ${GA_MEASUREMENT_ID}] %c${eventName}`, 'color: #4285F4; font-weight: bold;', 'color: #34A853; font-weight: bold;');
     console.table(parameters);
     console.groupEnd();
 
-    // Notify UI listeners
+    // Notify UI listeners if any
     this.listeners.forEach((listener) => {
       try {
         listener(event);
@@ -86,10 +100,27 @@ class GA4TelemetryService {
 
   // GA4 Standard Event Implementations
   public logPageView(pageTitle?: string, pagePath?: string): void {
+    const title = pageTitle || (typeof document !== 'undefined' ? document.title : 'MERCHVERSE | Designed for Creators. Inspired by Innovation.');
+    const path = pagePath || (typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/');
+    const location = typeof window !== 'undefined' ? window.location.origin + path : 'https://merchverse.google.com' + path;
+
+    if (typeof document !== 'undefined' && pageTitle) {
+      document.title = pageTitle.includes('MERCHVERSE') ? pageTitle : `${pageTitle} | MERCHVERSE`;
+    }
+
+    // Inform GA4 config about route/page change in SPA
+    if (typeof window !== 'undefined' && typeof window.gtag === 'function') {
+      window.gtag('config', GA_MEASUREMENT_ID, {
+        page_title: title,
+        page_location: location,
+        page_path: path,
+      });
+    }
+
     this.track('page_view', {
-      page_path: pagePath || (typeof window !== 'undefined' ? window.location.pathname : '/'),
-      page_title: pageTitle || 'MERCHVERSE | Designed for Creators.',
-      engagement_time_msec: Math.floor(Math.random() * 4500) + 1200,
+      page_title: title,
+      page_location: location,
+      page_path: path,
     });
   }
 
@@ -104,17 +135,15 @@ class GA4TelemetryService {
           item_category: product.collectionName,
           price: product.price,
           quantity: 1,
-          is_recycled_hoodie_target: product.id === 'google-recycled-black-hoodie-gen2',
         },
       ],
-      attribution_experiment: 'gen2_interactive_storytelling_v2',
     });
   }
 
   public logAddToCart(product: Product, quantity: number = 1, size: string, color: string): void {
     this.track('add_to_cart', {
       currency: 'USD',
-      value: product.price * quantity,
+      value: +(product.price * quantity).toFixed(2),
       items: [
         {
           item_id: product.id,
@@ -131,11 +160,12 @@ class GA4TelemetryService {
   public logRemoveFromCart(product: Product, quantity: number = 1): void {
     this.track('remove_from_cart', {
       currency: 'USD',
-      value: product.price * quantity,
+      value: +(product.price * quantity).toFixed(2),
       items: [
         {
           item_id: product.id,
           item_name: product.name,
+          item_category: product.collectionName,
           price: product.price,
           quantity,
         },
@@ -144,7 +174,7 @@ class GA4TelemetryService {
   }
 
   public logWishlistAdd(product: Product): void {
-    this.track('wishlist_add', {
+    this.track('add_to_wishlist', {
       currency: 'USD',
       value: product.price,
       items: [
@@ -152,6 +182,8 @@ class GA4TelemetryService {
           item_id: product.id,
           item_name: product.name,
           item_category: product.collectionName,
+          price: product.price,
+          quantity: 1,
         },
       ],
     });
@@ -161,16 +193,14 @@ class GA4TelemetryService {
     this.track('begin_checkout', {
       currency: 'USD',
       value: totalValue,
-      coupon: totalValue > 150 ? 'CREATOR_EXPEDITED' : undefined,
       items: items.map((item) => ({
         item_id: item.product.id,
         item_name: item.product.name,
+        item_category: item.product.collectionName,
         item_variant: `${item.selectedColor.name} / ${item.selectedSize}`,
         price: item.product.price,
         quantity: item.quantity,
       })),
-      checkout_step: 1,
-      payment_options_available: ['google_pay', 'apple_pay', 'credit_card', 'merchverse_points'],
     });
   }
 
@@ -185,6 +215,7 @@ class GA4TelemetryService {
       items: items.map((item) => ({
         item_id: item.product.id,
         item_name: item.product.name,
+        item_category: item.product.collectionName,
         item_variant: `${item.selectedColor.name} / ${item.selectedSize}`,
         price: item.product.price,
         quantity: item.quantity,
@@ -196,15 +227,12 @@ class GA4TelemetryService {
     this.track('search', {
       search_term: searchTerm,
       results_count: resultsCount,
-      ai_assisted: true,
     });
   }
 
   public logSignUp(method: string = 'google_one_tap'): void {
     this.track('sign_up', {
       method,
-      reward_points_granted: 250,
-      creator_tier: 'Bronze Artisan',
     });
   }
 

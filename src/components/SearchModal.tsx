@@ -53,6 +53,11 @@ export const SearchModal: React.FC<SearchModalProps> = ({
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && query.trim()) {
+                onTrackSearch(query.trim(), searchResults.length);
+              }
+            }}
             placeholder="Search hoodies, tees, materials (460 GSM, Pima), or collections..."
             className="flex-1 bg-transparent text-white placeholder:text-slate-500 text-sm focus:outline-none"
           />
@@ -78,7 +83,17 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                 ].map((term) => (
                   <button
                     key={term}
-                    onClick={() => setQuery(term)}
+                    onClick={() => {
+                      setQuery(term);
+                      const q = term.toLowerCase();
+                      const count = PRODUCTS.filter(
+                        (p) =>
+                          p.name.toLowerCase().includes(q) ||
+                          p.tagline.toLowerCase().includes(q) ||
+                          p.collection.toLowerCase().includes(q)
+                      ).length;
+                      onTrackSearch(term, count);
+                    }}
                     className="px-3 py-1.5 rounded-xl text-xs bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5 transition-all"
                   >
                     {term}
